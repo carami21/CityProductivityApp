@@ -15,8 +15,9 @@ export default function TimerPanel() {
   const { timer } = state;
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [customTime, setCustomTime] = useState("00:00");
+  const [customTimeDigits, setCustomTimeDigits] = useState(['0', '0', '0', '0']); // MM:SS format
   const [showCustomDialog, setShowCustomDialog] = useState(false);
+  const [currentDigitIndex, setCurrentDigitIndex] = useState(0);
 
   // Get today's sessions for stats
   const { data: todaysSessions = [] } = useQuery({
@@ -108,22 +109,45 @@ export default function TimerPanel() {
     });
   };
 
-  const handleCustomTimeChange = (value: string) => {
-    // Remove any non-digit characters
-    const digits = value.replace(/\D/g, '');
+  const handleDigitInput = (digit: string) => {
+    if (!/^\d$/.test(digit)) return;
     
-    // Format as MM:SS
-    if (digits.length <= 2) {
-      setCustomTime(`0${digits.length === 1 ? '0' : ''}${digits}:00`);
-    } else if (digits.length <= 4) {
-      const minutes = digits.slice(0, -2);
-      const seconds = digits.slice(-2);
-      setCustomTime(`${minutes.padStart(2, '0')}:${seconds}`);
+    const newDigits = [...customTimeDigits];
+    newDigits[currentDigitIndex] = digit;
+    setCustomTimeDigits(newDigits);
+    
+    // Move to next digit, wrap to start if at end
+    setCurrentDigitIndex((prev) => (prev + 1) % 4);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key >= '0' && e.key <= '9') {
+      e.preventDefault();
+      handleDigitInput(e.key);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      const newDigits = [...customTimeDigits];
+      const prevIndex = currentDigitIndex === 0 ? 3 : currentDigitIndex - 1;
+      newDigits[prevIndex] = '0';
+      setCustomTimeDigits(newDigits);
+      setCurrentDigitIndex(prevIndex);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setCurrentDigitIndex((prev) => prev === 0 ? 3 : prev - 1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setCurrentDigitIndex((prev) => (prev + 1) % 4);
     }
   };
 
+  const resetCustomTimer = () => {
+    setCustomTimeDigits(['0', '0', '0', '0']);
+    setCurrentDigitIndex(0);
+  };
+
   const handleCustomTimeSubmit = () => {
-    const [minutes, seconds] = customTime.split(':').map(Number);
+    const minutes = parseInt(customTimeDigits[0] + customTimeDigits[1]);
+    const seconds = parseInt(customTimeDigits[2] + customTimeDigits[3]);
     const totalSeconds = minutes * 60 + seconds;
     
     if (totalSeconds <= 0) {
@@ -144,6 +168,14 @@ export default function TimerPanel() {
     });
     
     setShowCustomDialog(false);
+  };
+
+  const getCustomTimeDisplay = () => {
+    return `${customTimeDigits[0]}${customTimeDigits[1]}:${customTimeDigits[2]}${customTimeDigits[3]}`;
+  };
+
+  const isCustomTimeSet = () => {
+    return !Object.values(SESSION_TYPES).some(config => config.duration === timer.totalTime);
   };
 
   const progress = ((timer.totalTime - timer.timeLeft) / timer.totalTime) * 100;
@@ -258,9 +290,9 @@ export default function TimerPanel() {
                 variant="outline"
                 disabled={timer.isRunning}
                 className={`w-full text-sm font-medium transition-all duration-200 ${
-                  timer.sessionType === 'focus' && !Object.values(SESSION_TYPES).some(config => config.duration === timer.totalTime)
-                    ? 'bg-red-500 text-white border-red-500'
-                    : 'bg-black text-red-500 border-gray-300 hover:bg-gray-50'
+                  isCustomTimeSet()
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300'
                 }`}
               >
                 Custom
@@ -270,29 +302,79 @@ export default function TimerPanel() {
               <DialogHeader>
                 <DialogTitle>Set Custom Timer</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Enter time (MM:SS format)
-                  </label>
-                  <Input
-                    value={customTime}
-                    onChange={(e) => handleCustomTimeChange(e.target.value)}
-                    placeholder="00:00"
-                    className="text-center text-lg font-mono"
-                    maxLength={5}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Tip: Type "500" for 5:00 (5 minutes)
+              <div className="space-y-6">
+                {/* Google-style timer display */}
+                <div className="text-center">
+                  <div 
+                    className="text-6xl font-mono font-light text-gray-700 cursor-text select-none"
+                    onClick={() => setCurrentDigitIndex(0)}
+                    tabIndex={0}
+                    onKeyDown={handleKeyDown}
+                    style={{ outline: 'none' }}
+                  >
+                    <span className={`${currentDigitIndex === 0 ? 'bg-blue-200 rounded px-1' : ''}`}>
+                      {customTimeDigits[0]}
+                    </span>
+                    <span className={`${currentDigitIndex === 1 ? 'bg-blue-200 rounded px-1' : ''}`}>
+                      {customTimeDigits[1]}
+                    </span>
+                    <span className="mx-2">:</span>
+                    <span className={`${currentDigitIndex === 2 ? 'bg-blue-200 rounded px-1' : ''}`}>
+                      {customTimeDigits[2]}
+                    </span>
+                    <span className={`${currentDigitIndex === 3 ? 'bg-blue-200 rounded px-1' : ''}`}>
+                      {customTimeDigits[3]}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Click and type to set time (MM:SS)
                   </p>
                 </div>
+
+                {/* Quick time buttons */}
+                <div className="flex justify-center space-x-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCustomTimeDigits(['0', '0', '3', '0']);
+                      setCurrentDigitIndex(0);
+                    }}
+                  >
+                    +0:30
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCustomTimeDigits(['0', '1', '0', '0']);
+                      setCurrentDigitIndex(0);
+                    }}
+                  >
+                    +1:00
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCustomTimeDigits(['0', '5', '0', '0']);
+                      setCurrentDigitIndex(0);
+                    }}
+                  >
+                    +5:00
+                  </Button>
+                </div>
+
                 <div className="flex space-x-3">
                   <Button onClick={handleCustomTimeSubmit} className="flex-1">
-                    Set Timer
+                    Start Timer
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => setShowCustomDialog(false)}
+                    onClick={() => {
+                      resetCustomTimer();
+                      setShowCustomDialog(false);
+                    }}
                     className="flex-1"
                   >
                     Cancel
