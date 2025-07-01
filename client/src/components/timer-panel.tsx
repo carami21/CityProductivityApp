@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAppContext } from "@/contexts/app-context";
 import { formatTime, SESSION_TYPES, calculateBricks } from "@/lib/timer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +15,8 @@ export default function TimerPanel() {
   const { timer } = state;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [customTime, setCustomTime] = useState("00:00");
+  const [showCustomDialog, setShowCustomDialog] = useState(false);
 
   // Get today's sessions for stats
   const { data: todaysSessions = [] } = useQuery({
@@ -104,15 +108,53 @@ export default function TimerPanel() {
     });
   };
 
+  const handleCustomTimeChange = (value: string) => {
+    // Remove any non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Format as MM:SS
+    if (digits.length <= 2) {
+      setCustomTime(`0${digits.length === 1 ? '0' : ''}${digits}:00`);
+    } else if (digits.length <= 4) {
+      const minutes = digits.slice(0, -2);
+      const seconds = digits.slice(-2);
+      setCustomTime(`${minutes.padStart(2, '0')}:${seconds}`);
+    }
+  };
+
+  const handleCustomTimeSubmit = () => {
+    const [minutes, seconds] = customTime.split(':').map(Number);
+    const totalSeconds = minutes * 60 + seconds;
+    
+    if (totalSeconds <= 0) {
+      toast({
+        title: "Invalid Time",
+        description: "Please enter a time greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    dispatch({
+      type: 'SET_SESSION_TYPE',
+      payload: {
+        type: 'focus', // Default to focus type for custom sessions
+        duration: totalSeconds,
+      },
+    });
+    
+    setShowCustomDialog(false);
+  };
+
   const progress = ((timer.totalTime - timer.timeLeft) / timer.totalTime) * 100;
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   // Calculate today's stats
   const todaysStats = {
-    sessions: todaysSessions.length,
-    focusTime: todaysSessions.reduce((total: number, session: any) => total + session.duration, 0),
-    bricksEarned: todaysSessions.reduce((total: number, session: any) => total + session.bricksEarned, 0),
+    sessions: Array.isArray(todaysSessions) ? todaysSessions.length : 0,
+    focusTime: Array.isArray(todaysSessions) ? todaysSessions.reduce((total: number, session: any) => total + (session.duration || 0), 0) : 0,
+    bricksEarned: Array.isArray(todaysSessions) ? todaysSessions.reduce((total: number, session: any) => total + (session.bricksEarned || 0), 0) : 0,
   };
 
   const formatFocusTime = (minutes: number) => {
@@ -159,7 +201,7 @@ export default function TimerPanel() {
         </div>
 
         {/* Timer Controls */}
-        <div className="flex justify-center space-x-4 mb-6">
+        <div className="flex justify-center space-x-3 mb-6">
           {!timer.isRunning ? (
             <Button
               onClick={handleStart}
@@ -190,7 +232,7 @@ export default function TimerPanel() {
         </div>
 
         {/* Session Types */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           {Object.entries(SESSION_TYPES).map(([key, config]) => (
             <Button
               key={key}
@@ -198,7 +240,7 @@ export default function TimerPanel() {
               onClick={() => handleSessionTypeChange(key as keyof typeof SESSION_TYPES)}
               disabled={timer.isRunning}
               className={`text-sm font-medium transition-all duration-200 ${
-                timer.sessionType === key
+                timer.sessionType === key && timer.totalTime === config.duration
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300'
               }`}
@@ -206,6 +248,59 @@ export default function TimerPanel() {
               {config.label}
             </Button>
           ))}
+        </div>
+
+        {/* Custom Timer Button */}
+        <div className="mb-6">
+          <Dialog open={showCustomDialog} onOpenChange={setShowCustomDialog}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={timer.isRunning}
+                className={`w-full text-sm font-medium transition-all duration-200 ${
+                  timer.sessionType === 'focus' && !Object.values(SESSION_TYPES).some(config => config.duration === timer.totalTime)
+                    ? 'bg-red-500 text-white border-red-500'
+                    : 'bg-black text-red-500 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Custom
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Set Custom Timer</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Enter time (MM:SS format)
+                  </label>
+                  <Input
+                    value={customTime}
+                    onChange={(e) => handleCustomTimeChange(e.target.value)}
+                    placeholder="00:00"
+                    className="text-center text-lg font-mono"
+                    maxLength={5}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Tip: Type "500" for 5:00 (5 minutes)
+                  </p>
+                </div>
+                <div className="flex space-x-3">
+                  <Button onClick={handleCustomTimeSubmit} className="flex-1">
+                    Set Timer
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowCustomDialog(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Today's Stats */}

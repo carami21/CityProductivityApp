@@ -43,7 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalFocusTime: stats.totalFocusTime + sessionData.duration,
           currentStreak: isConsecutiveDay ? stats.currentStreak + 1 : 1,
           longestStreak: Math.max(stats.longestStreak, isConsecutiveDay ? stats.currentStreak + 1 : 1),
-          totalBricks: stats.totalBricks + sessionData.bricksEarned,
+          totalBricks: stats.totalBricks + (sessionData.bricksEarned || 0),
           lastSessionDate: new Date(),
         });
       }
@@ -54,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const resources = city.resources as { bricks: number; coins: number };
         await storage.updateCity(DEMO_USER_ID, {
           resources: {
-            bricks: resources.bricks + sessionData.bricksEarned,
+            bricks: resources.bricks + (sessionData.bricksEarned || 0),
             coins: resources.coins,
           },
         });
