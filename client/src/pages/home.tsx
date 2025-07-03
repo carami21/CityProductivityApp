@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import TimerPanel from "@/components/timer-panel";
-import CityGrid from "@/components/city-grid";
+import CityGrid3D from "@/components/city-grid-3d-fixed";
 import BuildingPalette from "@/components/building-palette";
 import SessionHistory from "@/components/session-history";
 import { useAppContext } from "@/contexts/app-context";
@@ -20,8 +20,8 @@ export default function Home() {
     queryKey: ['/api/stats'],
   });
 
-  const resources = city?.resources || { bricks: 0, coins: 0 };
-  const streak = stats?.currentStreak || 0;
+  const resources = (city as any)?.resources || { bricks: 0, coins: 0 };
+  const streak = (stats as any)?.currentStreak || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-emerald-50">
@@ -71,7 +71,7 @@ export default function Home() {
 
           {/* City Grid */}
           <div className="lg:col-span-2">
-            <CityGrid />
+            <CityGrid3D />
           </div>
 
           {/* Building Palette & Session History */}

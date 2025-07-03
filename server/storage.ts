@@ -57,22 +57,30 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     
-    // Create default city and stats for new user
+    // Create default city with some demo buildings
+    const demoGrid = Array(8).fill(null).map(() => Array(8).fill(null));
+    
+    // Add some sample buildings for demo
+    demoGrid[2][2] = { buildingType: 'house', placedAt: new Date().toISOString() };
+    demoGrid[2][3] = { buildingType: 'shop', placedAt: new Date().toISOString() };
+    demoGrid[3][2] = { buildingType: 'office', placedAt: new Date().toISOString() };
+    demoGrid[4][4] = { buildingType: 'park', placedAt: new Date().toISOString() };
+    
     await this.createCity({
       userId: id,
-      gridData: Array(8).fill(null).map(() => Array(8).fill(null)),
-      resources: { bricks: 0, coins: 0 }
+      gridData: demoGrid,
+      resources: { bricks: 100, coins: 50 }
     });
     
     await this.createUserStats({
       userId: id,
-      totalSessions: 0,
-      totalFocusTime: 0,
-      currentStreak: 0,
-      longestStreak: 0,
-      totalBricks: 0,
-      totalCoins: 0,
-      lastSessionDate: null
+      totalSessions: 15,
+      totalFocusTime: 300,
+      currentStreak: 3,
+      longestStreak: 7,
+      totalBricks: 100,
+      totalCoins: 50,
+      lastSessionDate: new Date()
     });
     
     return user;
@@ -81,8 +89,11 @@ export class MemStorage implements IStorage {
   async createSession(insertSession: InsertSession): Promise<Session> {
     const id = this.currentSessionId++;
     const session: Session = {
-      ...insertSession,
       id,
+      userId: insertSession.userId!,
+      duration: insertSession.duration,
+      sessionType: insertSession.sessionType,
+      bricksEarned: insertSession.bricksEarned || 0,
       completedAt: new Date(),
     };
     this.sessions.set(id, session);
@@ -160,8 +171,15 @@ export class MemStorage implements IStorage {
   async createUserStats(statsData: InsertUserStats): Promise<UserStats> {
     const id = this.currentStatsId++;
     const stats: UserStats = {
-      ...statsData,
       id,
+      userId: statsData.userId,
+      totalSessions: statsData.totalSessions || 0,
+      totalFocusTime: statsData.totalFocusTime || 0,
+      currentStreak: statsData.currentStreak || 0,
+      longestStreak: statsData.longestStreak || 0,
+      totalBricks: statsData.totalBricks || 0,
+      totalCoins: statsData.totalCoins || 0,
+      lastSessionDate: statsData.lastSessionDate || null,
     };
     this.userStats.set(id, stats);
     return stats;
